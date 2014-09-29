@@ -51,7 +51,7 @@ import numpy as np
 # Plot empirical CDF with confidence intervals.
 #   num_quantiles=100 means estimate confidence interval at 1%,2%,3%,...,99%.
 #   confidence=0.90 mean plot the confidence interval range [5%-95%]
-def plot_CDF_confidence(data,num_quantiles=100,confidence=0.90,plot_ecdf=True,data_already_sorted=False,color='green',label=''):
+def plot_CDF_confidence(data,num_quantiles=100,confidence=0.90,plot_ecdf=True,data_already_sorted=False,color='green',label='',alpha=0.3):
 	data=np.array(data)
 	if len(np.shape(data))!=1:
 		raise NameError('Data must be 1 dimensional!')
@@ -78,7 +78,7 @@ def plot_CDF_confidence(data,num_quantiles=100,confidence=0.90,plot_ecdf=True,da
 	for i,q in enumerate(quantile_list):
 		low[i] =data[CDF_error(len(data),q, low_conf)]
 		high[i]=data[CDF_error(len(data),q,high_conf)]
-	plt.fill_betweenx(quantile_list,low,high,alpha=0.3,color=color)
+	plt.fill_betweenx(quantile_list,low,high,alpha=alpha,color=color)
 	if plot_ecdf:
 		plt.plot(data,np.linspace(0,1.0,num=len(data)),label=label,color=color)
 

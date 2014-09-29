@@ -13,10 +13,10 @@ Cc.plot_CDF_confidence(x)
 
 # Do fancier plot
 plt.figure()
-Cc.plot_CDF_confidence(x,label='Empirical CDF',color='chartreuse')
+Cc.plot_CDF_confidence(x,label='Empirical CDF',color='violet')
 
 x_sorted=np.sort(x)
-plt.plot(x_sorted,norm.cdf(x_sorted),label='True CDF')
+plt.plot(x_sorted,norm.cdf(x_sorted),':',label='True CDF')
 plt.legend(loc='best')
 
 plt.show()
