@@ -15,8 +15,18 @@
 # Y=sorted_data[Y_index]
 # 90% confidence interval is [X,Y]
 
-from scipy.stats import binom
-def CDF_error(n,target_quantile,quantile_quantile):
+from scipy.stats import binom, beta
+from scipy import interpolate
+
+# Note: this is the correct (pointwise) distribution
+def CDF_error_beta(n,target_quantile,quantile_quantile):
+	k=target_quantile*n
+	return(beta.ppf(quantile_quantile,k,n+1-k))
+
+# Warning: Bootstrapping fails for 0 and 1 quantile; as
+# quantile approaches extremes (generally, within 1/sqrt(n)
+# either end of n sample data), things get bad.
+def CDF_error_analytic_bootstrap(n,target_quantile,quantile_quantile):
 	target_count=int(target_quantile*float(n))
 
 	# Start off with a binary search
@@ -51,36 +61,47 @@ import numpy as np
 # Plot empirical CDF with confidence intervals.
 #   num_quantiles=100 means estimate confidence interval at 1%,2%,3%,...,99%.
 #   confidence=0.90 mean plot the confidence interval range [5%-95%]
-def plot_CDF_confidence(data,num_quantiles=100,confidence=0.90,plot_ecdf=True,data_already_sorted=False,color='green',label='',alpha=0.3):
+def plot_CDF_confidence(data,num_quantile_regions=100,confidence=0.90,plot_ecdf=True,
+	data_already_sorted=False,color='green',label='',alpha=0.3,estimator_name='exact'):
 	data=np.array(data)
 	if len(np.shape(data))!=1:
 		raise NameError('Data must be 1 dimensional!')
-	if len(data)<num_quantiles:
+	if len(data)<num_quantile_regions:
 		num_quantiles=len(data)
 	if len(data)<2:
 		raise NameError('Need at least 2 data points!')
-	if num_quantiles<2:
-		raise NameError('Need num_quantiles > 1 !')
+	if num_quantile_regions<2:
+		raise NameError('Need num_quantile_regions > 1 !')
 	if not data_already_sorted:
 		data=np.sort(data)
 	if confidence<=0.0 or confidence>=1.0:
 		raise NameError('"confidence" must be between 0.0 and 1.0')
 	low_conf=(1.0-confidence)/2.0
 	high_conf=1.0-low_conf
-	# We shouldn't really estimate intervals for 0%ile and 100%ile, since bootstrapping fails,
-	# but if you skip it, the graph looks funny.  Triumph of UI over truth!
 	
-	#quantile_list=np.linspace(1.0/float(num_quantiles),1.0,num=num_quantiles-1,endpoint=False)
-	quantile_list=np.linspace(0.0,1.0,num=num_quantiles+1)
+	quantile_list=np.linspace(1.0/float(num_quantile_regions),1.0-(1.0/float(num_quantile_regions)),num=num_quantile_regions-1)
 
 	low =np.zeros(np.shape(quantile_list))
 	high=np.zeros(np.shape(quantile_list))
-	for i,q in enumerate(quantile_list):
-		low[i] =data[CDF_error(len(data),q, low_conf)]
-		high[i]=data[CDF_error(len(data),q,high_conf)]
-	plt.fill_betweenx(quantile_list,low,high,alpha=alpha,color=color)
+	emp_quantile_list=np.linspace(1.0/float(len(data)+1),1.0-(1.0/float(len(data)+1)),num=len(data))
+	if estimator_name=='exact':
+		invCDF_interp=interpolate.interp1d(emp_quantile_list, data)
+		CDF_error_function=CDF_error_beta
+		for i,q in enumerate(quantile_list):
+			low[i] =CDF_error_function(len(data),q, low_conf)
+			high[i]=CDF_error_function(len(data),q,high_conf)
+		plt.fill_between(invCDF_interp(quantile_list),low,high,alpha=alpha,color=color)		
+	elif estimator_name=='analytic bootstrap':
+		CDF_error_function=CDF_error_analytic_bootstrap
+		for i,q in enumerate(quantile_list):
+			low[i] =data[CDF_error_function(len(data),q, low_conf)]
+			high[i]=data[CDF_error_function(len(data),q,high_conf)]
+		plt.fill_betweenx(quantile_list,low,high,alpha=alpha,color=color)		
+	else:
+		raise NameError('Unknown error estimator name %s'%(estimator))		
+
 	if plot_ecdf:
-		plt.plot(data,np.linspace(0,1.0,num=len(data)),label=label,color=color)
+		plt.plot(data,emp_quantile_list,label=label,color=color)
 
 
 
