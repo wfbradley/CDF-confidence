@@ -18,14 +18,18 @@
 from scipy.stats import binom, beta
 from scipy import interpolate
 
-# Note: this is the correct (pointwise) distribution
+# The beta distribution is the correct (pointwise) distribution
+# across *quantiles* for a given *data point*; if you're not
+# sure, this is probably the estimator you want to use. 
 def CDF_error_beta(n,target_quantile,quantile_quantile):
 	k=target_quantile*n
 	return(beta.ppf(quantile_quantile,k,n+1-k))
 
-# Warning: Bootstrapping fails for 0 and 1 quantile; as
-# quantile approaches extremes (generally, within 1/sqrt(n)
-# either end of n sample data), things get bad.
+# Boot strapping can give you a distribution across *values* for a given
+# *quantile*.  Warning: Although it is asymptotically correct for quantiles
+# in (0,1), bootstrapping fails for the extreme values (i.e. for quantile=0
+# or 1.  Moreover, you should be suspicious of confidence intervals for
+# points within 1/sqrt(data size).
 def CDF_error_analytic_bootstrap(n,target_quantile,quantile_quantile):
 	target_count=int(target_quantile*float(n))
 
@@ -56,20 +60,33 @@ def CDF_error_analytic_bootstrap(n,target_quantile,quantile_quantile):
 
 	return(prob_index)
 
+# Compute Dvoretzky-Kiefer-Wolfowitz confidence bands.
+def CDF_error_DKW_band(n,target_quantile,quantile_quantile):
+	# alpha is the total confidence interval size, e.g. 90%.
+	alpha=1.0-2.0*np.abs(0.5-quantile_quantile)
+	epsilon=np.sqrt(np.log(2.0/alpha)/(2.0*float(n)))
+	if quantile_quantile<0.5:
+		return(max((0,target_quantile-epsilon)))
+	else:
+		return(min((1,target_quantile+epsilon)))
+
+
 import matplotlib.pyplot as plt
 import numpy as np
 # Plot empirical CDF with confidence intervals.
-#   num_quantiles=100 means estimate confidence interval at 1%,2%,3%,...,99%.
+#   num_quantile_regions=100 means estimate confidence interval at 1%,2%,3%,...,99%.
 #   confidence=0.90 mean plot the confidence interval range [5%-95%]
-def plot_CDF_confidence(data,num_quantile_regions=100,confidence=0.90,plot_ecdf=True,
-	data_already_sorted=False,color='green',label='',alpha=0.3,estimator_name='exact'):
+def plot_CDF_confidence(data,num_quantile_regions='all',confidence=0.90,plot_ecdf=True,
+	data_already_sorted=False,color='green',label='',alpha=0.3,estimator_name='beta'):
 	data=np.array(data)
 	if len(np.shape(data))!=1:
 		raise NameError('Data must be 1 dimensional!')
-	if len(data)<num_quantile_regions:
-		num_quantiles=len(data)
+	if num_quantile_regions>len(data)+1:
+		num_quantile_regions=len(data)+1
 	if len(data)<2:
 		raise NameError('Need at least 2 data points!')
+	if num_quantile_regions=='all':
+		num_quantile_regions=len(data)
 	if num_quantile_regions<2:
 		raise NameError('Need num_quantile_regions > 1 !')
 	if not data_already_sorted:
@@ -81,24 +98,42 @@ def plot_CDF_confidence(data,num_quantile_regions=100,confidence=0.90,plot_ecdf=
 	
 	quantile_list=np.linspace(1.0/float(num_quantile_regions),1.0-(1.0/float(num_quantile_regions)),num=num_quantile_regions-1)
 
+	# Some estimators give confidence intervals on the *quantiles*, 
+	# others give intervals on the *data*; which do we have?
+	if estimator_name=='analytic bootstrap':
+		estimator_type='data'
+		CDF_error_function=CDF_error_analytic_bootstrap
+	elif estimator_name=='DKW':
+		estimator_type='quantile'
+		CDF_error_function=CDF_error_DKW_band
+	elif estimator_name=='beta':
+		estimator_type='quantile'
+		CDF_error_function=CDF_error_beta
+	else:
+		raise NameError('Unknown error estimator name %s'%(estimator_name))
+
+	if estimator_type=='quantile':
+		if num_quantile_regions==len(data)+1:
+			interpolated_quantile_list=data
+		else:
+			invCDF_interp=interpolate.interp1d(emp_quantile_list, data)
+			interpolated_quantile_list=invCDF_interp(quantile_list)
+
 	low =np.zeros(np.shape(quantile_list))
 	high=np.zeros(np.shape(quantile_list))
 	emp_quantile_list=np.linspace(1.0/float(len(data)+1),1.0-(1.0/float(len(data)+1)),num=len(data))
-	if estimator_name=='exact':
-		invCDF_interp=interpolate.interp1d(emp_quantile_list, data)
-		CDF_error_function=CDF_error_beta
+	if estimator_type=='quantile':
 		for i,q in enumerate(quantile_list):
 			low[i] =CDF_error_function(len(data),q, low_conf)
 			high[i]=CDF_error_function(len(data),q,high_conf)
-		plt.fill_between(invCDF_interp(quantile_list),low,high,alpha=alpha,color=color)		
-	elif estimator_name=='analytic bootstrap':
-		CDF_error_function=CDF_error_analytic_bootstrap
+		plt.fill_between(interpolated_quantile_list,low,high,alpha=alpha,color=color)		
+	elif estimator_type=='data':
 		for i,q in enumerate(quantile_list):
 			low[i] =data[CDF_error_function(len(data),q, low_conf)]
 			high[i]=data[CDF_error_function(len(data),q,high_conf)]
 		plt.fill_betweenx(quantile_list,low,high,alpha=alpha,color=color)		
 	else:
-		raise NameError('Unknown error estimator name %s'%(estimator))		
+		raise NameError('Unknown error estimator type %s'%(estimator_type))		
 
 	if plot_ecdf:
 		plt.plot(data,emp_quantile_list,label=label,color=color)
