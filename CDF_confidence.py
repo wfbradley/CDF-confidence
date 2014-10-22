@@ -77,7 +77,8 @@ import numpy as np
 #   num_quantile_regions=100 means estimate confidence interval at 1%,2%,3%,...,99%.
 #   confidence=0.90 mean plot the confidence interval range [5%-95%]
 def plot_CDF_confidence(data,num_quantile_regions='all',confidence=0.90,plot_ecdf=True,
-	data_already_sorted=False,color='green',label='',alpha=0.3,estimator_name='beta'):
+	data_already_sorted=False,color='green',label='',alpha=0.3,estimator_name='beta',
+	ax='use default axes'):
 	data=np.array(data)
 	if len(np.shape(data))!=1:
 		raise NameError('Data must be 1 dimensional!')
@@ -91,6 +92,8 @@ def plot_CDF_confidence(data,num_quantile_regions='all',confidence=0.90,plot_ecd
 		raise NameError('Need num_quantile_regions > 1 !')
 	if not data_already_sorted:
 		data=np.sort(data)
+	if ax=='use default axes':
+		ax=plt.gca()
 	if confidence<=0.0 or confidence>=1.0:
 		raise NameError('"confidence" must be between 0.0 and 1.0')
 	low_conf=(1.0-confidence)/2.0
@@ -126,17 +129,17 @@ def plot_CDF_confidence(data,num_quantile_regions='all',confidence=0.90,plot_ecd
 		for i,q in enumerate(quantile_list):
 			low[i] =CDF_error_function(len(data),q, low_conf)
 			high[i]=CDF_error_function(len(data),q,high_conf)
-		plt.fill_between(interpolated_quantile_list,low,high,alpha=alpha,color=color)		
+		ax.fill_between(interpolated_quantile_list,low,high,alpha=alpha,color=color)		
 	elif estimator_type=='data':
 		for i,q in enumerate(quantile_list):
 			low[i] =data[CDF_error_function(len(data),q, low_conf)]
 			high[i]=data[CDF_error_function(len(data),q,high_conf)]
-		plt.fill_betweenx(quantile_list,low,high,alpha=alpha,color=color)		
+		ax.fill_betweenx(quantile_list,low,high,alpha=alpha,color=color)		
 	else:
 		raise NameError('Unknown error estimator type %s'%(estimator_type))		
 
 	if plot_ecdf:
-		plt.plot(data,emp_quantile_list,label=label,color=color)
+		ax.plot(data,emp_quantile_list,label=label,color=color)
 
 
 
