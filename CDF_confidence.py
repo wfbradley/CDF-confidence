@@ -57,7 +57,7 @@ def CDF_error_analytic_bootstrap(n, target_quantile, quantile_quantile):
 
     # Finish it off with a linear search
     prob_closest = -100
-    for p_num in xrange(small_ind, big_ind+1):
+    for p_num in range(small_ind, big_ind+1):
         p = float(p_num)/float(n)
         coCDF_prob = 1-binom.cdf(target_count, n, p)
         if abs(coCDF_prob-quantile_quantile) < abs(prob_closest-quantile_quantile):
